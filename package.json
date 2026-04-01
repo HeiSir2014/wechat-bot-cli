@@ -1,0 +1,22 @@
+{
+  "name": "wechat-bot-cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run cli.ts",
+    "login": "bun run cli.ts --login",
+    "logs": "bun run logs.ts",
+    "logs:follow": "bun run logs.ts --follow"
+  },
+  "dependencies": {
+    "@tencent-weixin/openclaw-weixin": "^2.1.2",
+    "ink": "^6.8.0",
+    "node-edge-tts": "^1.2.10",
+    "qrcode-terminal": "^0.12.0",
+    "react": "^19.2.4",
+    "silk-wasm": "^3.7.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14"
+  }
+}

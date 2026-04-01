@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "baseUrl": ".",
+    "paths": {
+      "weixin/*": ["./node_modules/@tencent-weixin/openclaw-weixin/*"],
+      "openclaw/plugin-sdk": ["./shims/plugin-sdk.ts"],
+      "openclaw/plugin-sdk/core": ["./shims/plugin-sdk.ts"]
+    }
+  }
+}
