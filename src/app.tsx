@@ -2,10 +2,11 @@ import React, { useReducer, useCallback, useEffect } from "react";
 import { Box, useApp } from "ink";
 import type { AppState, AppAction, Message } from "./types.js";
 import { buildInitialAppState, loadStateWithFallback, persistAppState, getApiOpts } from "./services/state.js";
-import { sendText, sendImage, sendVideo, sendFile, sendVoice } from "./services/api.js";
+import { sendText, sendImage, sendVideo, sendFile, sendVoice, resendText } from "./services/api.js";
 import { ttsAndSendFile, TTS_VOICE_CATALOG, findVoice } from "./services/tts.js";
 import { resolveFilePath } from "./services/media.js";
 import { COMMAND_ENTRIES } from "./hooks/useCompletion.js";
+import { getFailedEntries, getSendStats } from "./services/send-log.js";
 import { usePoller } from "./hooks/usePoller.js";
 import { Header } from "./components/Header.js";
 import { MessageList } from "./components/MessageList.js";
@@ -203,6 +204,72 @@ export function App({ forceLogin }: { forceLogin?: boolean }) {
             dispatch({ type: "ADD_MESSAGE", message: sysMsg(msg) });
           }));
         } catch (e) { dispatch({ type: "ADD_MESSAGE", message: sysMsg(`✗ ${(e as Error).message}`) }); }
+        return;
+      }
+
+      case "/failed": {
+        const failed = getFailedEntries(7);
+        if (failed.length === 0) {
+          dispatch({ type: "ADD_MESSAGE", message: sysMsg("No failed messages in the last 7 days.") });
+        } else {
+          dispatch({ type: "ADD_MESSAGE", message: sysMsg(`─── Failed Messages (${failed.length}) ───`) });
+          for (const e of failed.slice(-20)) {
+            const preview = e.payload.length > 40 ? e.payload.slice(0, 40) + "…" : e.payload;
+            dispatch({
+              type: "ADD_MESSAGE",
+              message: sysMsg(`  [${e.id.slice(-8)}] ${e.contentType} → ${e.toUserId.slice(0, 8)}… | ${e.error ?? "unknown"} | ${preview}`),
+            });
+          }
+          dispatch({ type: "ADD_MESSAGE", message: sysMsg("Use /retry <id> to resend, or /retry all for all failed text messages.") });
+        }
+        return;
+      }
+
+      case "/retry": {
+        if (!args) {
+          dispatch({ type: "ADD_MESSAGE", message: sysMsg("Usage: /retry <id> | /retry all") });
+          return;
+        }
+        try {
+          const { target: t, ctx: c } = requireCtx();
+          if (args === "all") {
+            const failed = getFailedEntries(7).filter((e) => e.contentType === "text");
+            if (failed.length === 0) {
+              dispatch({ type: "ADD_MESSAGE", message: sysMsg("No failed text messages to retry.") });
+              return;
+            }
+            dispatch({ type: "ADD_MESSAGE", message: sysMsg(`Retrying ${failed.length} failed text messages...`) });
+            let ok = 0;
+            let fail = 0;
+            for (const e of failed) {
+              const r = await resendText(opts, e.toUserId, c, e.payload);
+              if (r.ok) ok++;
+              else fail++;
+            }
+            dispatch({ type: "ADD_MESSAGE", message: sysMsg(`Retry done: ${ok} sent, ${fail} still failed.`) });
+          } else {
+            const failed = getFailedEntries(7);
+            const entry = failed.find((e) => e.id.endsWith(args) || e.id === args);
+            if (!entry) {
+              dispatch({ type: "ADD_MESSAGE", message: sysMsg(`✗ No failed message matching "${args}". Use /failed to list.`) });
+              return;
+            }
+            if (entry.contentType !== "text") {
+              dispatch({ type: "ADD_MESSAGE", message: sysMsg(`✗ Only text messages can be retried via /retry. File: ${entry.payload}`) });
+              return;
+            }
+            dispatch({ type: "ADD_MESSAGE", message: outMsg(`[retry] ${entry.payload}`) });
+            addResult(await resendText(opts, entry.toUserId, c, entry.payload));
+          }
+        } catch (e) { dispatch({ type: "ADD_MESSAGE", message: sysMsg(`✗ ${(e as Error).message}`) }); }
+        return;
+      }
+
+      case "/stats": {
+        const s = getSendStats(1);
+        dispatch({ type: "ADD_MESSAGE", message: sysMsg(`Today: ${s.total} sent, ${s.sent} ok, ${s.failed} failed, ${s.pending} pending`) });
+        const s7 = getSendStats(7);
+        dispatch({ type: "ADD_MESSAGE", message: sysMsg(`7-day: ${s7.total} sent, ${s7.sent} ok, ${s7.failed} failed`) });
         return;
       }
 

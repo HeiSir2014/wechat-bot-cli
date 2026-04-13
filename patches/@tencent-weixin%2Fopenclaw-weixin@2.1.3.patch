@@ -1,0 +1,94 @@
+diff --git a/src/api/api.ts b/src/api/api.ts
+index 7bd2395e064f5a5a1ac1b6f77c15cdc1dd5150d5..be6fa1e7ac7dc4b0bbdedd44f9c4eed92543f1f0 100644
+--- a/src/api/api.ts
++++ b/src/api/api.ts
+@@ -263,18 +263,62 @@ export async function getUploadUrl(
+   return resp;
+ }
+ 
+-/** Send a single message downstream. */
++/** Response from sendMessage, parsed from JSON body. */
++export interface SendMessageResult {
++  /** HTTP status code */
++  httpStatus: number;
++  /** Business return code (0 = success) */
++  ret?: number;
++  /** Error code from server (e.g. -14 = session expired) */
++  errcode?: number;
++  /** Error message from server */
++  errmsg?: string;
++  /** Raw response text */
++  rawBody: string;
++}
++
++/** Send a single message downstream. Returns parsed response for error inspection. */
+ export async function sendMessage(
+   params: WeixinApiOptions & { body: SendMessageReq },
+-): Promise<void> {
+-  await apiPostFetch({
+-    baseUrl: params.baseUrl,
+-    endpoint: "ilink/bot/sendmessage",
+-    body: JSON.stringify({ ...params.body, base_info: buildBaseInfo() }),
+-    token: params.token,
+-    timeoutMs: params.timeoutMs ?? DEFAULT_API_TIMEOUT_MS,
+-    label: "sendMessage",
+-  });
++): Promise<SendMessageResult> {
++  const base = ensureTrailingSlash(params.baseUrl);
++  const url = new URL("ilink/bot/sendmessage", base);
++  const jsonBody = JSON.stringify({ ...params.body, base_info: buildBaseInfo() });
++  const hdrs = buildHeaders({ token: params.token, body: jsonBody });
++  logger.debug(`POST ${redactUrl(url.toString())} body=${redactBody(jsonBody)}`);
++
++  const controller = new AbortController();
++  const t = setTimeout(() => controller.abort(), params.timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
++  try {
++    const res = await fetch(url.toString(), {
++      method: "POST",
++      headers: hdrs,
++      body: jsonBody,
++      signal: controller.signal,
++    });
++    clearTimeout(t);
++    const rawBody = await res.text();
++    logger.debug(`sendMessage status=${res.status} raw=${redactBody(rawBody)}`);
++
++    if (!res.ok) {
++      throw new Error(`sendMessage ${res.status}: ${rawBody}`);
++    }
++
++    let ret: number | undefined;
++    let errcode: number | undefined;
++    let errmsg: string | undefined;
++    try {
++      const parsed = JSON.parse(rawBody);
++      ret = parsed.ret;
++      errcode = parsed.errcode;
++      errmsg = parsed.errmsg;
++    } catch { /* non-JSON body, treat as success if HTTP ok */ }
++
++    return { httpStatus: res.status, ret, errcode, errmsg, rawBody };
++  } catch (err) {
++    clearTimeout(t);
++    throw err;
++  }
+ }
+ 
+ /** Fetch bot config (includes typing_ticket) for a given user. */
+diff --git a/src/api/types.ts b/src/api/types.ts
+index ff627442a21f287621143cec4432f8fa068ea894..9996bbba94d518d406e18947b73b2773c9da8ff0 100644
+--- a/src/api/types.ts
++++ b/src/api/types.ts
+@@ -195,7 +195,11 @@ export interface SendMessageReq {
+ }
+ 
+ export interface SendMessageResp {
+-  // empty
++  httpStatus?: number;
++  ret?: number;
++  errcode?: number;
++  errmsg?: string;
++  rawBody?: string;
+ }
+ 
+ /** Typing status: 1 = typing (default), 2 = cancel typing. */

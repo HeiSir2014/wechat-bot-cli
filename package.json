@@ -9,7 +9,7 @@
     "logs:follow": "bun run logs.ts --follow"
   },
   "dependencies": {
-    "@tencent-weixin/openclaw-weixin": "^2.1.2",
+    "@tencent-weixin/openclaw-weixin": "^2.1.3",
     "ink": "^6.8.0",
     "node-edge-tts": "^1.2.10",
     "qrcode-terminal": "^0.12.0",
@@ -18,5 +18,8 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.14"
+  },
+  "patchedDependencies": {
+    "@tencent-weixin/openclaw-weixin@2.1.3": "patches/@tencent-weixin%2Fopenclaw-weixin@2.1.3.patch"
   }
 }

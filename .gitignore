@@ -1,0 +1,32 @@
+node_modules/
+bun.lockb
+bun.lock
+
+# Runtime state (token, sync cursor, contextTokens)
+.wechat-cli-state*
+
+# Downloaded inbound media
+.media-downloads/
+
+# TTS temp files
+.tts-temp/
+
+# Send logs (message delivery tracking)
+.send-logs/
+
+# Logs (written by logger shim)
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+.tts-temp/
+
+logs/

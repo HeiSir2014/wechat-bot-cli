@@ -12,6 +12,9 @@ const COMMANDS: Record<string, string> = {
   "/to": "Set target user",
   "/info": "Session info",
   "/raw": "Toggle raw JSON",
+  "/failed": "Show failed msgs",
+  "/retry": "Retry failed msg",
+  "/stats": "Send statistics",
   "/login": "Re-login",
   "/quit": "Exit",
 };
@@ -19,7 +22,7 @@ const COMMANDS: Record<string, string> = {
 export const COMMAND_NAMES = Object.keys(COMMANDS);
 export const COMMAND_ENTRIES = Object.entries(COMMANDS);
 const FILE_COMMANDS = new Set(["/file", "/image", "/video", "/voice"]);
-const ARG_COMMANDS = new Set([...FILE_COMMANDS, "/send", "/to", "/tts"]);
+const ARG_COMMANDS = new Set([...FILE_COMMANDS, "/send", "/to", "/tts", "/retry"]);
 
 function completeFilePath(partial: string): string[] {
   const cwd = process.cwd();

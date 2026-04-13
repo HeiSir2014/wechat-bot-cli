@@ -65,3 +65,33 @@ export type AppAction =
   | { type: "TOGGLE_RAW" }
   | { type: "SET_TTS_CONFIG"; config: Partial<TtsConfig> }
   | { type: "CLEAR_SESSION" };
+
+// --- Send log types ---
+
+export type SendStatus = "pending" | "sent" | "failed" | "retrying";
+
+export interface SendLogEntry {
+  /** Unique send attempt ID */
+  id: string;
+  /** ISO timestamp */
+  ts: string;
+  /** Target WeChat userId */
+  toUserId: string;
+  /** context_token used */
+  contextToken: string;
+  /** Message content type */
+  contentType: "text" | "image" | "video" | "file" | "voice" | "tts";
+  /** Text content or file path */
+  payload: string;
+  status: SendStatus;
+  /** Attempt count (starts at 1) */
+  attempts: number;
+  /** HTTP status code from last attempt */
+  httpStatus?: number;
+  /** Business ret code from response body */
+  retCode?: number;
+  /** Error message from last attempt */
+  error?: string;
+  /** ISO timestamp of last attempt */
+  lastAttemptTs?: string;
+}

@@ -1,14 +1,15 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { sendMessage as sendMessageApi, getUploadUrl, type WeixinApiOptions } from "weixin/src/api/api.js";
+import { getUploadUrl, type WeixinApiOptions } from "weixin/src/api/api.js";
 import { MessageItemType, MessageType, MessageState, UploadMediaType } from "weixin/src/api/types.js";
 import { aesEcbPaddedSize } from "weixin/src/cdn/aes-ecb.js";
 import { uploadBufferToCdn } from "weixin/src/cdn/cdn-upload.js";
 import { generateId } from "weixin/src/util/random.js";
 import type { TtsConfig } from "../types.js";
 import { CDN_BASE_URL, TTS_TEMP_DIR } from "./state.js";
-import type { SendResult } from "./api.js";
+import { makeSendFn, type SendResult } from "./api.js";
+import { sendWithRetry } from "./send-queue.js";
 
 export const TTS_VOICE_CATALOG: { name: string; id: string; gender: string; style: string }[] = [
   // Female
@@ -105,25 +106,28 @@ export async function ttsAndSendFile(
       cdnBaseUrl: CDN_BASE_URL, aeskey, label: "cli-tts",
     });
 
-    await sendMessageApi({
-      ...opts,
-      body: {
-        msg: {
-          from_user_id: "", to_user_id: to, client_id: generateId("wechat-cli"),
-          message_type: MessageType.BOT, message_state: MessageState.FINISH, context_token: contextToken,
-          item_list: [{
-            type: MessageItemType.FILE,
-            file_item: {
-              media: { encrypt_query_param: downloadParam, aes_key: Buffer.from(aeskey.toString("hex")).toString("base64"), encrypt_type: 1 },
-              file_name: fileName, len: String(rawsize),
-            },
-          }],
-        },
+    const msgBody = {
+      msg: {
+        from_user_id: "", to_user_id: to, client_id: generateId("wechat-cli"),
+        message_type: MessageType.BOT, message_state: MessageState.FINISH, context_token: contextToken,
+        item_list: [{
+          type: MessageItemType.FILE,
+          file_item: {
+            media: { encrypt_query_param: downloadParam, aes_key: Buffer.from(aeskey.toString("hex")).toString("base64"), encrypt_type: 1 },
+            file_name: fileName, len: String(rawsize),
+          },
+        }],
       },
-    });
+    };
+
+    const logEntry = await sendWithRetry(
+      { toUserId: to, contextToken, contentType: "tts", payload: text },
+      makeSendFn(opts, msgBody),
+    );
 
     fs.unlinkSync(mp3Path);
-    return { ok: true, detail: `TTS "${fileName}" sent` };
+    if (logEntry.status === "sent") return { ok: true, detail: `TTS "${fileName}" sent`, logEntry };
+    return { ok: false, error: logEntry.error || "TTS send failed", logEntry };
   } catch (err) {
     return { ok: false, error: (err as Error).message };
   }
